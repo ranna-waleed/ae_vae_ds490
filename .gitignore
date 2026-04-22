@@ -1,0 +1,21 @@
+# dataset: too large for GitHub
+dataset/
+
+# trained model weights
+saved_models/
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# conda/venv environments
+venv/
+.env
+
+# VS Code settings
+.vscode/
+
+# system files
+.DS_Store
+Thumbs.db
