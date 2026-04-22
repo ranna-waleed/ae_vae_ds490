@@ -1,26 +1,47 @@
+"""
+visualize.py
+All visualization functions for AE and VAE experiments.
+Saves plots to the plots/ directory organized by region.
+"""
+
+# Standard library
 import os
 import json
+from typing import List
+
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
-PLOTS_DIR = "plots"
+PLOTS_DIR: str = "plots"
 
 
-def _ensure_dir(path):
+def _ensure_dir(path: str) -> None:
+    """Create directory if it does not exist."""
     os.makedirs(path, exist_ok=True)
 
 
-#  Reconstruction comparison
+def plot_reconstructions(
+    model: tf.keras.Model,
+    sample_images: List[np.ndarray],
+    region_name: str,
+    model_type: str = "AE"
+) -> None:
+    """
+    Plot original images alongside their reconstructions.
 
-def plot_reconstructions(model, sample_images, region_name, model_type="AE"):
-    """Show original vs reconstructed images side by side."""
+    Args:
+        model: Trained AE or VAE model with a callable forward pass.
+        sample_images: List of numpy arrays (H, W, 1).
+        region_name: Used for plot title and save path.
+        model_type: Either "AE" or "VAE" for labeling.
+    """
     n = min(8, len(sample_images))
     fig, axes = plt.subplots(2, n, figsize=(n * 2, 4))
     fig.suptitle(f"{model_type} Reconstructions — {region_name}", fontsize=13)
 
     for i in range(n):
-        img = np.expand_dims(sample_images[i], axis=0)  # (1, 64, 64, 1)
+        img = np.expand_dims(sample_images[i], axis=0)
         reconstructed = model(img).numpy()[0]
 
         axes[0, i].imshow(sample_images[i].squeeze(), cmap="gray")
@@ -34,19 +55,33 @@ def plot_reconstructions(model, sample_images, region_name, model_type="AE"):
             axes[1, i].set_title("Recon.", fontsize=9)
 
     plt.tight_layout()
-    save_path = os.path.join(PLOTS_DIR, region_name, f"{model_type.lower()}_reconstructions.png")
+    save_path = os.path.join(
+        PLOTS_DIR, region_name, f"{model_type.lower()}_reconstructions.png"
+    )
     _ensure_dir(os.path.dirname(save_path))
     plt.savefig(save_path, dpi=120)
     plt.show()
     print(f"Saved -> {save_path}")
 
 
-#  Latent space (2D scatter)
-
-def plot_latent_space(model, dataset, region_name, model_type="AE", max_batches=10):
+def plot_latent_space(
+    model: tf.keras.Model,
+    dataset: tf.data.Dataset,
+    region_name: str,
+    model_type: str = "AE",
+    max_batches: int = 10
+) -> None:
     """
-    Encode images and scatter their latent vectors in 2D.
-    Works because LATENT_DIM = 2.
+    Scatter plot of 2D latent representations.
+
+    Works directly since LATENT_DIM=2 (no PCA needed).
+
+    Args:
+        model: Model with an encode() method.
+        dataset: tf.data.Dataset yielding (image, image) batches.
+        region_name: Used for title and save path.
+        model_type: Either "AE" or "VAE".
+        max_batches: Number of batches to encode.
     """
     all_z = []
 
@@ -54,7 +89,7 @@ def plot_latent_space(model, dataset, region_name, model_type="AE", max_batches=
         z = model.encode(batch_x).numpy()
         all_z.append(z)
 
-    all_z = np.concatenate(all_z, axis=0)  # (N, 2)
+    all_z = np.concatenate(all_z, axis=0)
 
     plt.figure(figsize=(6, 6))
     plt.scatter(all_z[:, 0], all_z[:, 1], alpha=0.4, s=10, color="steelblue")
@@ -63,23 +98,32 @@ def plot_latent_space(model, dataset, region_name, model_type="AE", max_batches=
     plt.ylabel("z[1]")
     plt.tight_layout()
 
-    save_path = os.path.join(PLOTS_DIR, region_name, f"{model_type.lower()}_latent_space.png")
+    save_path = os.path.join(
+        PLOTS_DIR, region_name, f"{model_type.lower()}_latent_space.png"
+    )
     _ensure_dir(os.path.dirname(save_path))
     plt.savefig(save_path, dpi=120)
     plt.show()
     print(f"Saved -> {save_path}")
 
 
-#  VAE sample generation (grid from latent grid)
+def plot_generated_samples(
+    vae_model: tf.keras.Model,
+    region_name: str,
+    grid_size: int = 8
+) -> None:
+    """
+    Generate images by decoding a regular grid in 2D latent space.
 
-def plot_generated_samples(vae_model, region_name, grid_size=8):
+    Args:
+        vae_model: Trained VAE model with a decode() method.
+        region_name: Used for title and save path.
+        grid_size: Number of points per axis in the grid.
     """
-    Sample points from a regular 2D grid in latent space
-    and decode them to images.
-    """
-    # build a grid over [-3, 3] x [-3, 3]
     lin = np.linspace(-3, 3, grid_size)
-    fig, axes = plt.subplots(grid_size, grid_size, figsize=(grid_size * 1.5, grid_size * 1.5))
+    fig, axes = plt.subplots(
+        grid_size, grid_size, figsize=(grid_size * 1.5, grid_size * 1.5)
+    )
     fig.suptitle(f"VAE Generated Samples — {region_name}", fontsize=13)
 
     for i, yi in enumerate(lin):
@@ -97,10 +141,21 @@ def plot_generated_samples(vae_model, region_name, grid_size=8):
     print(f"Saved -> {save_path}")
 
 
-#  Denoising demo
+def plot_denoising(
+    model: tf.keras.Model,
+    sample_images: List[np.ndarray],
+    region_name: str,
+    model_type: str = "AE"
+) -> None:
+    """
+    Show clean -> noisy -> denoised comparison.
 
-def plot_denoising(model, sample_images, region_name, model_type="AE"):
-    """Show: clean -> noisy -> denoised."""
+    Args:
+        model: Trained model used to denoise images.
+        sample_images: List of clean numpy arrays.
+        region_name: Used for title and save path.
+        model_type: Either "AE" or "VAE".
+    """
     n = min(6, len(sample_images))
     fig, axes = plt.subplots(3, n, figsize=(n * 2, 6))
     fig.suptitle(f"{model_type} Denoising — {region_name}", fontsize=13)
@@ -121,17 +176,22 @@ def plot_denoising(model, sample_images, region_name, model_type="AE"):
                 axes[row, i].set_title(row_labels[row], fontsize=9)
 
     plt.tight_layout()
-    save_path = os.path.join(PLOTS_DIR, region_name, f"{model_type.lower()}_denoising.png")
+    save_path = os.path.join(
+        PLOTS_DIR, region_name, f"{model_type.lower()}_denoising.png"
+    )
     _ensure_dir(os.path.dirname(save_path))
     plt.savefig(save_path, dpi=120)
     plt.show()
     print(f"Saved -> {save_path}")
 
 
-#  Training loss curves
+def plot_loss(region_name: str) -> None:
+    """
+    Plot training loss curves from saved JSON history files.
 
-def plot_loss(region_name):
-    """Plot loss curves from saved history JSON files."""
+    Args:
+        region_name: Used to locate history files and save the plot.
+    """
     hist_dir = os.path.join("histories", region_name)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -154,8 +214,12 @@ def plot_loss(region_name):
         with open(vae_path) as f:
             vae_hist = json.load(f)
         axes[1].plot(vae_hist.get("total_loss", []), label="Total", color="tomato")
-        axes[1].plot(vae_hist.get("recon_loss", []), label="Recon", color="orange", linestyle="--")
-        axes[1].plot(vae_hist.get("kl_loss", []), label="KL", color="green", linestyle=":")
+        axes[1].plot(
+            vae_hist.get("recon_loss", []), label="Recon", color="orange", linestyle="--"
+        )
+        axes[1].plot(
+            vae_hist.get("kl_loss", []), label="KL", color="green", linestyle=":"
+        )
         axes[1].set_title("VAE Losses")
         axes[1].set_xlabel("Epoch")
         axes[1].set_ylabel("Loss")
